@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SSRB · Seguimiento y Reparación de Baches</title>
+<meta name="description" content="Prototipo del Sistema de Seguimiento y Reparación de Baches (SSRB): reporte, priorización, órdenes de trabajo, costos y daños.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2326282D'/%3E%3Cellipse cx='16' cy='17' rx='10' ry='6' fill='%23F2C230'/%3E%3Cellipse cx='16' cy='17' rx='6' ry='3.4' fill='%2326282D'/%3E%3C/svg%3E">
+<style>
+:root{
+  --asfalto:#26282D; --asfalto-2:#3A3D44; --concreto:#ECEDEA; --papel:#FFFFFF;
+  --linea:#F2C230; --texto:#1F2125; --tenue:#5E626B; --borde:#D3D5D1;
+  --alta:#C8372D; --media:#D99A0B; --baja:#2F8A3E; --foco:#1F6FEB;
+  --radio:10px;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--concreto);color:var(--texto);font:16px/1.5 "Barlow",system-ui,sans-serif;min-height:100vh}
+h1,h2,h3{font-family:"Barlow Semi Condensed","Arial Narrow","Barlow",system-ui,sans-serif;line-height:1.1;margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--foco);outline-offset:2px}
+
+/* Barra superior: la calzada */
+.calzada{background:var(--asfalto);color:#fff;position:relative}
+.calzada::after{content:"";position:absolute;left:0;right:0;bottom:0;height:5px;
+  background:repeating-linear-gradient(90deg,var(--linea) 0 34px,transparent 34px 58px)}
+.calzada-in{max-width:1120px;margin:0 auto;padding:18px 20px 0;display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 28px}
+.marca{display:flex;align-items:center;gap:12px;padding-bottom:16px}
+.marca svg{flex:none}
+.marca h1{font-size:28px;font-weight:800;letter-spacing:.5px}
+.marca p{margin:0;font-size:13px;color:#B9BCC3}
+nav{display:flex;gap:2px;overflow-x:auto;margin-left:auto;scrollbar-width:none}
+nav::-webkit-scrollbar{display:none}
+nav button{background:none;border:0;color:#C9CCD2;padding:10px 14px 18px;cursor:pointer;font-weight:600;white-space:nowrap;border-radius:8px 8px 0 0}
+nav button[aria-selected="true"]{background:var(--concreto);color:var(--texto)}
+nav button:hover:not([aria-selected="true"]){color:#fff}
+.cuenta{font-size:12px;background:var(--linea);color:var(--asfalto);border-radius:999px;padding:0 7px;margin-left:5px;font-weight:700}
+
+main{max-width:1120px;margin:0 auto;padding:28px 20px 60px}
+.vista{display:none}.vista.activa{display:block}
+.cabeza{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 20px;margin-bottom:18px}
+.cabeza h2{font-size:30px;font-weight:700}
+.cabeza p{margin:0;color:var(--tenue);max-width:60ch}
+
+.panel{background:var(--papel);border:1px solid var(--borde);border-radius:var(--radio);padding:22px}
+.rejilla{display:grid;grid-template-columns:1.1fr .9fr;gap:20px}
+@media (max-width:860px){.rejilla{grid-template-columns:1fr}}
+
+label{display:block;font-weight:600;font-size:14px;margin:0 0 6px}
+.campo{margin-bottom:16px}
+.ayuda{font-size:13px;color:var(--tenue);margin-top:4px}
+input[type=text],input[type=tel],input[type=number],select,textarea{width:100%;background:#fff;border:1.5px solid var(--borde);border-radius:8px;padding:10px 12px}
+input:focus,select:focus,textarea:focus{border-color:var(--asfalto-2)}
+.fila{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:520px){.fila{grid-template-columns:1fr}}
+.opciones{display:flex;flex-wrap:wrap;gap:8px}
+.opciones label{margin:0;font-weight:500;font-size:14px;border:1.5px solid var(--borde);border-radius:999px;padding:6px 12px;cursor:pointer;background:#fff}
+.opciones input{position:absolute;opacity:0;pointer-events:none}
+.opciones input:checked+span{font-weight:700}
+.opciones label:has(input:checked){border-color:var(--asfalto);background:var(--asfalto);color:#fff}
+.opciones label:has(input:focus-visible){outline:3px solid var(--foco);outline-offset:2px}
+
+.btn{display:inline-flex;align-items:center;gap:8px;border:0;border-radius:8px;padding:11px 18px;font-weight:600;cursor:pointer;background:var(--asfalto);color:#fff}
+.btn:hover{background:#000}
+.btn.sec{background:#fff;color:var(--texto);border:1.5px solid var(--borde)}
+.btn.sec:hover{border-color:var(--asfalto)}
+.btn.chico{padding:6px 12px;font-size:14px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* El bache que crece: la pieza memorable */
+.bache-vivo{background:var(--asfalto);border-radius:var(--radio);color:#fff;padding:22px;display:flex;flex-direction:column;gap:16px;min-height:100%}
+.escena{position:relative;height:190px;border-radius:8px;background:
+  radial-gradient(circle at 20% 30%,#33363c 0 2px,transparent 3px) 0 0/22px 22px,
+  radial-gradient(circle at 70% 60%,#2d2f34 0 1.5px,transparent 2.5px) 0 0/17px 17px,#2E3036;overflow:hidden}
+.escena::before{content:"";position:absolute;left:0;right:0;top:50%;height:6px;margin-top:-3px;
+  background:repeating-linear-gradient(90deg,var(--linea) 0 40px,transparent 40px 70px);opacity:.85}
+.hueco{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:47% 53% 44% 56%/55% 45% 55% 45%;
+  background:radial-gradient(ellipse at 45% 40%,#0d0e10 0 45%,#1a1b1e 70%,#4a4c52 100%);
+  box-shadow:inset 0 6px 14px rgba(0,0,0,.8),0 0 0 3px #3d3f45;transition:width .35s ease,height .35s ease}
+@media (prefers-reduced-motion:reduce){.hueco{transition:none}}
+.medidor{display:flex;align-items:center;gap:14px}
+.medidor input{flex:1;accent-color:var(--linea)}
+.medidor output{font:800 44px/1 "Barlow Semi Condensed";min-width:2ch;text-align:right}
+.semaforo{display:flex;gap:12px;align-items:center}
+.luces{display:flex;gap:6px;background:#17181b;padding:6px 8px;border-radius:999px}
+.luz{width:18px;height:18px;border-radius:50%;background:#3b3d42}
+.luz.on.alta{background:var(--alta);box-shadow:0 0 12px var(--alta)}
+.luz.on.media{background:var(--media);box-shadow:0 0 12px var(--media)}
+.luz.on.baja{background:var(--baja);box-shadow:0 0 12px var(--baja)}
+.semaforo strong{font:700 22px/1 "Barlow Semi Condensed"}
+.semaforo span{color:#B9BCC3;font-size:14px;display:block;margin-top:2px}
+.dato-auto{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:14px;color:#C9CCD2;border-top:1px solid #3A3D44;padding-top:14px}
+.dato-auto b{color:#fff;font-weight:600}
+
+/* Tablas */
+.herramientas{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+.herramientas select,.herramientas input{width:auto;min-width:150px}
+.tabla-env{overflow-x:auto;background:#fff;border:1px solid var(--borde);border-radius:var(--radio)}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{text-align:left;padding:11px 14px;border-bottom:1px solid #E6E7E4;vertical-align:middle}
+th{font-size:13px;color:var(--tenue);font-weight:600;background:#F7F7F5;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+.id{font:700 15px "Barlow Semi Condensed";white-space:nowrap}
+.prio{display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:14px}
+.prio::before{content:"";width:10px;height:10px;border-radius:50%;background:currentColor}
+.prio.alta{color:var(--alta)}.prio.media{color:#A87400}.prio.baja{color:var(--baja)}
+.estado{display:inline-block;font-size:13px;font-weight:600;padding:2px 9px;border-radius:999px;background:#ECEDEA;white-space:nowrap}
+.estado.reparado{background:#DDF0E0;color:#1F6A2B}
+.estado.proceso{background:#FFF0C7;color:#7A5600}
+.estado.temporal{background:#E3ECFA;color:#1E4E9C}
+.estado.pendiente{background:#F8E0DD;color:#9A2A21}
+.vacio{padding:34px;text-align:center;color:var(--tenue)}
+
+/* Órdenes */
+.ordenes{display:grid;gap:14px}
+.orden{background:#fff;border:1px solid var(--borde);border-radius:var(--radio);padding:18px;display:grid;grid-template-columns:1fr auto;gap:12px 20px}
+.orden h3{font-size:20px}
+.orden .meta{color:var(--tenue);font-size:14px;margin-top:2px}
+.orden .costo{text-align:right}
+.orden .costo b{font:800 28px/1 "Barlow Semi Condensed";display:block}
+.orden .costo span{font-size:13px;color:var(--tenue)}
+.orden form{grid-column:1/-1;border-top:1px dashed var(--borde);padding-top:14px;display:grid;grid-template-columns:repeat(4,1fr) auto;gap:12px;align-items:end}
+.orden form .campo{margin:0}
+@media (max-width:760px){.orden form{grid-template-columns:1fr 1fr}.orden form .acciones{grid-column:1/-1}}
+.acciones{display:flex;gap:8px;flex-wrap:wrap}
+.error{color:var(--alta);font-size:14px;font-weight:600;grid-column:1/-1;margin:0}
+
+/* Reportes */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+@media (max-width:760px){.kpis{grid-template-columns:1fr 1fr}}
+.kpi{background:#fff;border:1px solid var(--borde);border-radius:var(--radio);padding:16px 18px}
+.kpi b{font:800 34px/1 "Barlow Semi Condensed";display:block}
+.kpi span{color:var(--tenue);font-size:14px}
+.barras{display:grid;gap:12px}
+.barra{display:grid;grid-template-columns:110px 1fr 110px;gap:12px;align-items:center;font-size:15px}
+.barra .pista{height:22px;background:#ECEDEA;border-radius:4px;overflow:hidden}
+.barra .pista i{display:block;height:100%;background:var(--asfalto);border-right:4px solid var(--linea)}
+.barra .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.tarifas{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media (max-width:620px){.tarifas{grid-template-columns:1fr}}
+
+/* Consulta ciudadana */
+.consulta{max-width:640px}
+.ruta{display:flex;margin:22px 0 4px;padding:0;list-style:none}
+.ruta li{flex:1;position:relative;padding-top:30px;font-size:14px;color:var(--tenue);text-align:center}
+.ruta li::before{content:"";position:absolute;top:8px;left:50%;width:16px;height:16px;margin-left:-8px;border-radius:50%;background:#fff;border:3px solid var(--borde);z-index:1}
+.ruta li::after{content:"";position:absolute;top:14px;left:-50%;width:100%;height:4px;background:var(--borde)}
+.ruta li:first-child::after{display:none}
+.ruta li.hecho{color:var(--texto);font-weight:600}
+.ruta li.hecho::before{background:var(--linea);border-color:var(--asfalto)}
+.ruta li.hecho::after{background:var(--asfalto)}
+
+.aviso{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--asfalto);color:#fff;padding:12px 18px;border-radius:8px;border-left:0;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:calc(100% - 32px);z-index:10}
+.aviso.ver{opacity:1;transform:translateX(-50%)}
+@media (prefers-reduced-motion:reduce){.aviso{transition:none}}
+footer{max-width:1120px;margin:0 auto;padding:0 20px 30px;color:var(--tenue);font-size:13px;display:flex;flex-wrap:wrap;gap:8px 18px;justify-content:space-between}
+footer button{background:none;border:0;color:var(--tenue);text-decoration:underline;cursor:pointer;padding:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+</head>
+<body>
+<header class="calzada">
+  <div class="calzada-in">
+    <div class="marca">
+      <svg width="40" height="40" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#3A3D44"/><ellipse cx="16" cy="17" rx="10" ry="6" fill="#F2C230"/><ellipse cx="16" cy="17" rx="6" ry="3.4" fill="#26282D"/></svg>
+      <div><h1>SSRB</h1><p>Seguimiento y Reparación de Baches · Obras Públicas</p></div>
+    </div>
+    <nav role="tablist" aria-label="Secciones">
+      <button role="tab" data-v="reportar" aria-selected="true">Reportar</button>
+      <button role="tab" data-v="baches" aria-selected="false">Baches <span class="cuenta" id="c-baches">0</span></button>
+      <button role="tab" data-v="ordenes" aria-selected="false">Órdenes <span class="cuenta" id="c-ordenes">0</span></button>
+      <button role="tab" data-v="danos" aria-selected="false">Daños</button>
+      <button role="tab" data-v="reportes" aria-selected="false">Reportes</button>
+      <button role="tab" data-v="consultar" aria-selected="false">Consultar</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <!-- CU-01 Reportar bache -->
+  <section class="vista activa" id="v-reportar" role="tabpanel">
+    <div class="cabeza"><h2>Reportar un bache</h2><p>El sistema asigna el número, el distrito y la prioridad automáticamente.</p></div>
+    <div class="rejilla">
+      <form class="panel" id="f-bache" novalidate>
+        <div class="campo">
+          <label for="calle">Calle o avenida</label>
+          <select id="calle" required></select>
+          <div class="ayuda">El distrito se obtiene de la calle (RN-05).</div>
+        </div>
+        <div class="campo">
+          <label for="altura">Altura o referencia</label>
+          <input type="text" id="altura" placeholder="Cuadra 12, frente al mercado" required>
+        </div>
+        <div class="campo">
+          <span id="ubic-l" style="display:block;font-weight:600;font-size:14px;margin-bottom:6px">Ubicación en la vía</span>
+          <div class="opciones" role="radiogroup" aria-labelledby="ubic-l">
+            <label><input type="radio" name="ubic" value="Centro de la calzada" checked><span>Centro de la calzada</span></label>
+            <label><input type="radio" name="ubic" value="Carril derecho"><span>Carril derecho</span></label>
+            <label><input type="radio" name="ubic" value="Cuneta"><span>Cuneta</span></label>
+            <label><input type="radio" name="ubic" value="Berma"><span>Berma</span></label>
+            <label><input type="radio" name="ubic" value="Intersección"><span>Intersección</span></label>
+          </div>
+        </div>
+        <div class="campo">
+          <label for="reportante">Reportado por</label>
+          <select id="reportante"><option>Ciudadano (web)</option><option>Operador de registro</option></select>
+        </div>
+        <p class="error" id="dup" hidden></p>
+        <button class="btn" type="submit">Registrar bache</button>
+      </form>
+
+      <aside class="bache-vivo" aria-label="Tamaño y prioridad">
+        <div class="escena"><div class="hueco" id="hueco"></div></div>
+        <div>
+          <label for="tam" style="color:#fff">Tamaño del bache (1 a 10)</label>
+          <div class="medidor"><input type="range" id="tam" min="1" max="10" value="5" form="f-bache"><output id="tam-o" for="tam">5</output></div>
+        </div>
+        <div class="semaforo" aria-live="polite">
+          <div class="luces" aria-hidden="true"><i class="luz alta"></i><i class="luz media"></i><i class="luz baja"></i></div>
+          <div><strong id="prio-t">Prioridad media</strong><span id="prio-p">Reparar en un máximo de 7 días</span></div>
+        </div>
+        <div class="dato-auto">
+          <span>Número</span><b id="auto-id">B-0000</b>
+          <span>Distrito</span><b id="auto-dist">—</b>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- Lista de baches -->
+  <section class="vista" id="v-baches" role="tabpanel">
+    <div class="cabeza"><h2>Baches registrados</h2><p>Ordenados por prioridad. Crea la orden de trabajo desde aquí.</p></div>
+    <div class="herramientas">
+      <label class="sr" for="fil-dist">Distrito</label><select id="fil-dist"></select>
+      <label class="sr" for="fil-est">Estado</label>
+      <select id="fil-est"><option value="">Todos los estados</option><option>No reparado</option><option>Trabajo en proceso</option><option>Reparación temporal</option><option>Reparado</option></select>
+      <label class="sr" for="fil-q">Buscar</label><input type="text" id="fil-q" placeholder="Buscar por número o calle">
+    </div>
+    <div class="tabla-env"><table>
+      <thead><tr><th>Número</th><th>Calle</th><th>Distrito</th><th class="num">Tamaño</th><th>Prioridad</th><th>Estado</th><th></th></tr></thead>
+      <tbody id="t-baches"></tbody>
+    </table></div>
+  </section>
+
+  <!-- Órdenes -->
+  <section class="vista" id="v-ordenes" role="tabpanel">
+    <div class="cabeza"><h2>Órdenes de trabajo</h2><p>Registra horas y material. Una orden solo se cierra como reparada si ambos están completos (RN-03).</p></div>
+    <div class="ordenes" id="l-ordenes"></div>
+  </section>
+
+  <!-- Daños -->
+  <section class="vista" id="v-danos" role="tabpanel">
+    <div class="cabeza"><h2>Archivo de daños</h2><p>Reclamos de ciudadanos por daños causados por un bache registrado (RN-04).</p></div>
+    <div class="rejilla">
+      <form class="panel" id="f-dano" novalidate>
+        <div class="campo"><label for="d-bache">Bache que causó el daño</label><select id="d-bache" required></select></div>
+        <div class="campo"><label for="d-nombre">Nombre del ciudadano</label><input type="text" id="d-nombre" required autocomplete="name"></div>
+        <div class="fila">
+          <div class="campo"><label for="d-dir">Dirección</label><input type="text" id="d-dir" required></div>
+          <div class="campo"><label for="d-tel">Teléfono</label><input type="tel" id="d-tel" required inputmode="tel"></div>
+        </div>
+        <div class="fila">
+          <div class="campo"><label for="d-tipo">Tipo de daño</label>
+            <select id="d-tipo"><option>Llanta o aro</option><option>Suspensión</option><option>Lesión personal</option><option>Otro</option></select></div>
+          <div class="campo"><label for="d-monto">Monto reclamado (S/)</label><input type="number" id="d-monto" min="0" step="0.01" required></div>
+        </div>
+        <p class="error" id="d-err" hidden></p>
+        <button class="btn" type="submit">Registrar daño</button>
+      </form>
+      <div class="tabla-env" style="align-self:start"><table>
+        <thead><tr><th>Bache</th><th>Ciudadano</th><th>Tipo</th><th class="num">Monto</th></tr></thead>
+        <tbody id="t-danos"></tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <!-- Reportes -->
+  <section class="vista" id="v-reportes" role="tabpanel">
+    <div class="cabeza"><h2>Reportes de gestión</h2><p>Costos de reparación por distrito y reclamos por daños.</p></div>
+    <div class="kpis" id="kpis"></div>
+    <div class="rejilla">
+      <div class="panel"><h3 style="font-size:20px;margin-bottom:16px">Costo de reparación por distrito</h3><div class="barras" id="barras"></div></div>
+      <div class="panel">
+        <h3 style="font-size:20px;margin-bottom:6px">Tarifas para el cálculo de costo</h3>
+        <p class="ayuda" style="margin:0 0 14px">Costo = horas × personas × tarifa h-h + material × costo m³ + horas × tarifa del equipo (RN-02).</p>
+        <form id="f-tar" class="tarifas">
+          <div class="campo"><label for="t-hh">Hora-hombre (S/)</label><input type="number" id="t-hh" min="0" step="0.5"></div>
+          <div class="campo"><label for="t-mat">Material m³ (S/)</label><input type="number" id="t-mat" min="0" step="1"></div>
+          <div class="campo"><label for="t-eq">Equipo por hora (S/)</label><input type="number" id="t-eq" min="0" step="1"></div>
+        </form>
+        <button class="btn sec chico" id="b-tar" type="button">Guardar tarifas</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- CU-02 Consultar -->
+  <section class="vista" id="v-consultar" role="tabpanel">
+    <div class="consulta">
+      <div class="cabeza"><h2>¿Cómo va mi reporte?</h2><p>Ingresa el número que recibiste al reportar el bache.</p></div>
+      <form class="panel" id="f-con">
+        <label for="con-id">Número de bache</label>
+        <div style="display:flex;gap:10px"><input type="text" id="con-id" placeholder="B-0001" autocomplete="off"><button class="btn" type="submit">Consultar</button></div>
+        <div id="con-res" aria-live="polite"></div>
+      </form>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span>Prototipo académico · Universidad Continental · Análisis y Diseño de Software, Semana 5. Datos guardados solo en este navegador.</span>
+  <button type="button" id="b-reset">Restaurar datos de ejemplo</button>
+</footer>
+<div class="aviso" id="aviso" role="status"></div>
+
+<script>
+(() => {
+  const CALLES = {
+    "Av. Los Próceres": "Norte", "Jr. Las Retamas": "Norte", "Av. San Carlos": "Norte",
+    "Av. Grau": "Centro", "Jr. Ica": "Centro", "Calle Real": "Centro",
+    "Av. Huancavelica": "Sur", "Av. Ferrocarril": "Sur", "Jr. Moquegua": "Sur",
+    "Av. Mariscal Castilla": "Este", "Av. Evitamiento": "Este", "Jr. Los Pinos": "Este"
+  };
+  const DISTRITOS = ["Norte", "Centro", "Sur", "Este"];
+  const EQUIPOS = [
+    { id: "EQ-01", nombre: "Cuadrilla 1", personas: 3, maquina: "Rodillo compactador" },
+    { id: "EQ-02", nombre: "Cuadrilla 2", personas: 4, maquina: "Camión de asfalto" },
+    { id: "EQ-03", nombre: "Cuadrilla 3", personas: 2, maquina: "Plancha vibratoria" }
+  ];
+  const KEY = "ssrb-v1";
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const soles = n => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  // RN-01
+  const prioridad = t => t >= 8 ? { k: "alta", t: "Alta", p: "Reparar en un máximo de 48 horas" }
+    : t >= 4 ? { k: "media", t: "Media", p: "Reparar en un máximo de 7 días" }
+    : { k: "baja", t: "Baja", p: "Reparar en un máximo de 30 días" };
+  const ORDEN_P = { alta: 0, media: 1, baja: 2 };
+  // RN-02
+  const costo = (o, tar) => (o.horas * o.personas * tar.hh) + (o.material * tar.mat) + (o.horas * tar.eq);
+
+  function semilla() {
+    const hoy = Date.now(), d = n => new Date(hoy - n * 864e5).toISOString();
+    const baches = [
+      { id: "B-0001", calle: "Av. Grau", altura: "Cuadra 8, frente al banco", ubic: "Centro de la calzada", tam: 9, estado: "Reparado", fecha: d(9), por: "Operador de registro" },
+      { id: "B-0002", calle: "Av. Huancavelica", altura: "Cruce con Jr. Moquegua", ubic: "Intersección", tam: 7, estado: "Trabajo en proceso", fecha: d(4), por: "Ciudadano (web)" },
+      { id: "B-0003", calle: "Jr. Las Retamas", altura: "Cuadra 3", ubic: "Cuneta", tam: 3, estado: "No reparado", fecha: d(3), por: "Ciudadano (web)" },
+      { id: "B-0004", calle: "Av. Evitamiento", altura: "Km 2, sentido sur", ubic: "Carril derecho", tam: 10, estado: "No reparado", fecha: d(1), por: "Operador de registro" },
+      { id: "B-0005", calle: "Av. Mariscal Castilla", altura: "Cuadra 21", ubic: "Berma", tam: 5, estado: "Reparación temporal", fecha: d(6), por: "Ciudadano (web)" }
+    ];
+    const ordenes = [
+      { id: "OT-001", bache: "B-0001", equipo: "EQ-01", personas: 3, maquina: "Rodillo compactador", horas: 4, material: 0.5, estado: "Reparado", costo: 480, cerrada: true },
+      { id: "OT-002", bache: "B-0002", equipo: "EQ-02", personas: 4, maquina: "Camión de asfalto", horas: 2, material: 0, estado: "Trabajo en proceso", costo: 0, cerrada: false },
+      { id: "OT-003", bache: "B-0005", equipo: "EQ-03", personas: 2, maquina: "Plancha vibratoria", horas: 1.5, material: 0.2, estado: "Reparación temporal", costo: 120, cerrada: false }
+    ];
+    const danos = [{ bache: "B-0001", nombre: "Rosa Quispe", dir: "Jr. Ica 455", tel: "964 112 330", tipo: "Llanta o aro", monto: 350 }];
+    return { baches, ordenes, danos, tar: { hh: 15, mat: 200, eq: 50 } };
+  }
+  let db;
+  try { db = JSON.parse(localStorage.getItem(KEY)) || semilla(); } catch { db = semilla(); }
+  const guardar = () => { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch {} };
+  const sigId = (pre, arr, w) => pre + String(arr.length ? Math.max(...arr.map(x => +x.id.split("-")[1])) + 1 : 1).padStart(w, "0");
+  const distrito = calle => CALLES[calle] || "—";
+
+  function avisar(msg) {
+    const a = $("#aviso"); a.textContent = msg; a.classList.add("ver");
+    clearTimeout(avisar.t); avisar.t = setTimeout(() => a.classList.remove("ver"), 2600);
+  }
+
+  // Pestañas
+  const tabs = [...document.querySelectorAll('nav [role="tab"]')];
+  function ir(v) {
+    tabs.forEach(t => t.setAttribute("aria-selected", t.dataset.v === v));
+    document.querySelectorAll(".vista").forEach(s => s.classList.toggle("activa", s.id === "v-" + v));
+    render();
+    try { history.replaceState(null, "", "#" + v); } catch {}
+  }
+  tabs.forEach(t => t.addEventListener("click", () => ir(t.dataset.v)));
+
+  // Formulario de reporte
+  $("#calle").innerHTML = '<option value="">Elige la calle…</option>' +
+    DISTRITOS.map(d => `<optgroup label="Distrito ${d}">` + Object.keys(CALLES).filter(c => CALLES[c] === d).map(c => `<option>${c}</option>`).join("") + "</optgroup>").join("");
+  const tam = $("#tam");
+  function vivo() {
+    const t = +tam.value, p = prioridad(t), px = 26 + t * 13;
+    $("#tam-o").value = t;
+    $("#hueco").style.width = px * 1.35 + "px"; $("#hueco").style.height = px * .8 + "px";
+    document.querySelectorAll(".luz").forEach(l => l.classList.toggle("on", l.classList.contains(p.k)));
+    $("#prio-t").textContent = "Prioridad " + p.t.toLowerCase(); $("#prio-p").textContent = p.p;
+    $("#auto-id").textContent = sigId("B-", db.baches, 4);
+    $("#auto-dist").textContent = $("#calle").value ? "Distrito " + distrito($("#calle").value) : "—";
+    // RF-05 posible duplicado
+    const ubic = document.querySelector('input[name="ubic"]:checked').value;
+    const dup = db.baches.find(b => b.calle === $("#calle").value && b.ubic === ubic && b.estado !== "Reparado");
+    $("#dup").hidden = !dup;
+    if (dup) $("#dup").textContent = `Posible duplicado: ${dup.id} está en la misma calle y ubicación (${dup.altura}). Puedes registrarlo igual.`;
+  }
+  tam.addEventListener("input", vivo); $("#calle").addEventListener("change", vivo);
+  document.querySelectorAll('input[name="ubic"]').forEach(r => r.addEventListener("change", vivo));
+
+  $("#f-bache").addEventListener("submit", e => {
+    e.preventDefault();
+    const calle = $("#calle").value, altura = $("#altura").value.trim();
+    if (!calle || !altura) { avisar(!calle ? "Elige la calle del bache." : "Escribe la altura o una referencia."); (calle ? $("#altura") : $("#calle")).focus(); return; }
+    const b = { id: sigId("B-", db.baches, 4), calle, altura, ubic: document.querySelector('input[name="ubic"]:checked').value,
+      tam: +tam.value, estado: "No reparado", fecha: new Date().toISOString(), por: $("#reportante").value };
+    db.baches.push(b); guardar();
+    $("#altura").value = ""; vivo(); render();
+    avisar(`Bache ${b.id} registrado · Distrito ${distrito(calle)} · prioridad ${prioridad(b.tam).t.toLowerCase()}`);
+  });
+
+  // Lista
+  $("#fil-dist").innerHTML = '<option value="">Todos los distritos</option>' + DISTRITOS.map(d => `<option>${d}</option>`).join("");
+  ["#fil-dist", "#fil-est", "#fil-q"].forEach(s => $(s).addEventListener("input", render));
+  const claseEst = e => ({ "Reparado": "reparado", "Trabajo en proceso": "proceso", "Reparación temporal": "temporal" }[e] || "pendiente");
+
+  function renderBaches() {
+    const fd = $("#fil-dist").value, fe = $("#fil-est").value, q = $("#fil-q").value.trim().toLowerCase();
+    const rows = db.baches.filter(b => (!fd || distrito(b.calle) === fd) && (!fe || b.estado === fe) &&
+      (!q || b.id.toLowerCase().includes(q) || b.calle.toLowerCase().includes(q)))
+      .sort((a, b) => ORDEN_P[prioridad(a.tam).k] - ORDEN_P[prioridad(b.tam).k] || b.tam - a.tam);
+    $("#t-baches").innerHTML = rows.length ? rows.map(b => {
+      const p = prioridad(b.tam), tiene = db.ordenes.some(o => o.bache === b.id);
+      return `<tr><td class="id">${b.id}</td><td>${esc(b.calle)}<div class="ayuda" style="margin:0">${esc(b.altura)} · ${esc(b.ubic)}</div></td>
+        <td>${distrito(b.calle)}</td><td class="num">${b.tam}</td><td><span class="prio ${p.k}">${p.t}</span></td>
+        <td><span class="estado ${claseEst(b.estado)}">${b.estado}</span></td>
+        <td>${tiene ? '<span class="ayuda">Con orden</span>' : `<button class="btn chico" data-crear="${b.id}">Crear orden</button>`}</td></tr>`;
+    }).join("") : `<tr><td colspan="7" class="vacio">Ningún bache coincide con el filtro.</td></tr>`;
+  }
+  $("#t-baches").addEventListener("click", e => {
+    const id = e.target.dataset.crear; if (!id) return;
+    const eq = EQUIPOS[db.ordenes.length % EQUIPOS.length];
+    const o = { id: sigId("OT-", db.ordenes, 3), bache: id, equipo: eq.id, personas: eq.personas, maquina: eq.maquina, horas: 0, material: 0, estado: "Trabajo en proceso", costo: 0, cerrada: false };
+    db.ordenes.push(o); db.baches.find(b => b.id === id).estado = "Trabajo en proceso"; guardar();
+    avisar(`Orden ${o.id} creada para ${id}`); ir("ordenes");
+  });
+
+  // Órdenes
+  function renderOrdenes() {
+    const lst = [...db.ordenes].sort((a, b) => a.cerrada - b.cerrada || b.id.localeCompare(a.id));
+    $("#l-ordenes").innerHTML = lst.length ? lst.map(o => {
+      const b = db.baches.find(x => x.id === o.bache) || {}, p = prioridad(b.tam || 1);
+      const c = o.cerrada ? o.costo : costo(o, db.tar);
+      const eqOpts = EQUIPOS.map(e => `<option value="${e.id}" ${e.id === o.equipo ? "selected" : ""}>${e.nombre} (${e.personas} pers.)</option>`).join("");
+      return `<article class="orden" data-o="${o.id}">
+        <div><h3>${o.id} · ${b.id || ""} <span class="prio ${p.k}" style="font-size:14px;margin-left:6px">${p.t}</span></h3>
+          <div class="meta">${esc(b.calle || "")}, ${esc(b.altura || "")} · Distrito ${distrito(b.calle)} · tamaño ${b.tam}</div>
+          <div class="meta">${esc(o.maquina)} · ${o.personas} personas · <span class="estado ${claseEst(o.estado)}">${o.estado}</span></div></div>
+        <div class="costo"><b>${soles(c)}</b><span>${o.cerrada ? "Costo final" : "Costo estimado"}</span></div>
+        ${o.cerrada ? "" : `<form novalidate>
+          <div class="campo"><label for="eq-${o.id}">Equipo</label><select id="eq-${o.id}" name="equipo">${eqOpts}</select></div>
+          <div class="campo"><label for="h-${o.id}">Horas</label><input type="number" id="h-${o.id}" name="horas" min="0" step="0.5" value="${o.horas || ""}"></div>
+          <div class="campo"><label for="m-${o.id}">Material (m³)</label><input type="number" id="m-${o.id}" name="material" min="0" step="0.1" value="${o.material || ""}"></div>
+          <div class="campo"><label for="e-${o.id}">Estado</label><select id="e-${o.id}" name="estado">
+            ${["Trabajo en proceso", "Reparación temporal", "No reparado"].map(s => `<option ${s === o.estado ? "selected" : ""}>${s}</option>`).join("")}</select></div>
+          <div class="acciones"><button class="btn sec chico" type="button" data-acc="guardar">Guardar avance</button><button class="btn chico" type="button" data-acc="cerrar">Cerrar como reparado</button></div>
+          <p class="error" hidden></p></form>`}
+      </article>`;
+    }).join("") : `<div class="panel vacio">Aún no hay órdenes. Crea una desde la lista de baches.</div>`;
+  }
+  const leer = (art, o) => {
+    const f = art.querySelector("form"), eq = EQUIPOS.find(e => e.id === f.equipo.value);
+    o.equipo = eq.id; o.personas = eq.personas; o.maquina = eq.maquina;
+    o.horas = +f.horas.value || 0; o.material = +f.material.value || 0; o.estado = f.estado.value;
+  };
+  $("#l-ordenes").addEventListener("input", e => {
+    const art = e.target.closest(".orden"); if (!art) return;
+    const o = { ...db.ordenes.find(x => x.id === art.dataset.o) }; leer(art, o);
+    art.querySelector(".costo b").textContent = soles(costo(o, db.tar));
+  });
+  $("#l-ordenes").addEventListener("click", e => {
+    const acc = e.target.dataset.acc; if (!acc) return;
+    const art = e.target.closest(".orden"), o = db.ordenes.find(x => x.id === art.dataset.o), b = db.baches.find(x => x.id === o.bache);
+    leer(art, o);
+    if (acc === "cerrar") {
+      const err = art.querySelector(".error");
+      if (!(o.horas > 0) || !(o.material > 0)) { // RN-03
+        err.hidden = false; err.textContent = "No se puede cerrar: registra las horas y el material usados (RN-03).";
+        (o.horas > 0 ? art.querySelector('[name="material"]') : art.querySelector('[name="horas"]')).focus(); return;
+      }
+      o.costo = costo(o, db.tar); o.estado = "Reparado"; o.cerrada = true; b.estado = "Reparado";
+      guardar(); render(); avisar(`Orden ${o.id} cerrada · costo ${soles(o.costo)}`);
+    } else { b.estado = o.estado; guardar(); render(); avisar(`Avance de ${o.id} guardado`); }
+  });
+
+  // Daños
+  function renderDanos() {
+    const sel = $("#d-bache"), v = sel.value;
+    sel.innerHTML = '<option value="">Elige el bache…</option>' + db.baches.map(b => `<option value="${b.id}">${b.id} · ${esc(b.calle)}</option>`).join("");
+    sel.value = v;
+    $("#t-danos").innerHTML = db.danos.length ? db.danos.map(d => `<tr><td class="id">${d.bache}</td><td>${esc(d.nombre)}<div class="ayuda" style="margin:0">${esc(d.tel)}</div></td><td>${esc(d.tipo)}</td><td class="num">${soles(d.monto)}</td></tr>`).join("")
+      : `<tr><td colspan="4" class="vacio">Sin reclamos registrados.</td></tr>`;
+  }
+  $("#f-dano").addEventListener("submit", e => {
+    e.preventDefault();
+    const d = { bache: $("#d-bache").value, nombre: $("#d-nombre").value.trim(), dir: $("#d-dir").value.trim(), tel: $("#d-tel").value.trim(), tipo: $("#d-tipo").value, monto: +$("#d-monto").value };
+    const err = $("#d-err");
+    const falta = !d.bache ? "el bache (RN-04)" : !d.nombre ? "el nombre" : !d.dir ? "la dirección" : !d.tel ? "el teléfono" : !(d.monto > 0) ? "el monto" : "";
+    if (falta) { err.hidden = false; err.textContent = "Completa " + falta + "."; return; }
+    err.hidden = true; db.danos.push(d); guardar(); e.target.reset(); render(); avisar("Daño registrado para " + d.bache);
+  });
+
+  // Reportes
+  function renderReportes() {
+    const cerr = db.ordenes.filter(o => o.cerrada), total = cerr.reduce((s, o) => s + o.costo, 0);
+    const pend = db.baches.filter(b => b.estado !== "Reparado"), altas = pend.filter(b => prioridad(b.tam).k === "alta").length;
+    const rec = db.danos.reduce((s, d) => s + d.monto, 0);
+    $("#kpis").innerHTML = [[pend.length, "baches por reparar"], [altas, "de prioridad alta pendientes"], [soles(total), "invertido en reparaciones"], [soles(rec), "en reclamos por daños"]]
+      .map(([n, l]) => `<div class="kpi"><b>${n}</b><span>${l}</span></div>`).join("");
+    const por = DISTRITOS.map(d => [d, cerr.filter(o => distrito((db.baches.find(b => b.id === o.bache) || {}).calle) === d).reduce((s, o) => s + o.costo, 0)]);
+    const max = Math.max(1, ...por.map(x => x[1]));
+    $("#barras").innerHTML = por.map(([d, v]) => `<div class="barra"><span>Distrito ${d}</span><div class="pista"><i style="width:${v / max * 100}%;${v ? "" : "border:0"}"></i></div><span class="num">${soles(v)}</span></div>`).join("");
+    $("#t-hh").value = db.tar.hh; $("#t-mat").value = db.tar.mat; $("#t-eq").value = db.tar.eq;
+  }
+  $("#b-tar").addEventListener("click", () => {
+    db.tar = { hh: +$("#t-hh").value || 0, mat: +$("#t-mat").value || 0, eq: +$("#t-eq").value || 0 };
+    guardar(); render(); avisar("Tarifas guardadas");
+  });
+
+  // Consulta
+  $("#f-con").addEventListener("submit", e => {
+    e.preventDefault();
+    let q = $("#con-id").value.trim().toUpperCase().replace(/\s/g, "");
+    if (/^\d+$/.test(q)) q = "B-" + q.padStart(4, "0");
+    const b = db.baches.find(x => x.id === q), r = $("#con-res");
+    if (!b) { r.innerHTML = `<p class="error" style="margin-top:14px">No encontramos el bache ${esc(q || "indicado")}. Revisa el número, por ejemplo B-0002.</p>`; return; }
+    const pasos = ["Reportado", "Orden creada", "En reparación", "Reparado"];
+    const o = db.ordenes.find(x => x.bache === b.id);
+    const nivel = b.estado === "Reparado" ? 4 : (o && (o.horas > 0 || b.estado !== "No reparado")) ? 3 : o ? 2 : 1;
+    const p = prioridad(b.tam);
+    r.innerHTML = `<div style="margin-top:20px"><h3 style="font-size:22px">${b.id} · ${esc(b.calle)}</h3>
+      <div class="ayuda">${esc(b.altura)} · Distrito ${distrito(b.calle)} · <span class="prio ${p.k}">Prioridad ${p.t.toLowerCase()}</span></div>
+      <ol class="ruta">${pasos.map((s, i) => `<li class="${i < nivel ? "hecho" : ""}">${s}</li>`).join("")}</ol>
+      <p style="margin:12px 0 0">Estado actual: <span class="estado ${claseEst(b.estado)}">${b.estado}</span>${b.estado === "Reparado" ? "" : ` · ${p.p.toLowerCase()} desde el reporte.`}</p></div>`;
+  });
+
+  $("#b-reset").addEventListener("click", () => { db = semilla(); guardar(); render(); vivo(); avisar("Datos de ejemplo restaurados"); });
+
+  function render() {
+    $("#c-baches").textContent = db.baches.filter(b => b.estado !== "Reparado").length;
+    $("#c-ordenes").textContent = db.ordenes.filter(o => !o.cerrada).length;
+    renderBaches(); renderOrdenes(); renderDanos(); renderReportes();
+  }
+  vivo(); render();
+  const h = location.hash.slice(1); if (tabs.some(t => t.dataset.v === h)) ir(h);
+})();
+</script>
+</body>
+</html>
